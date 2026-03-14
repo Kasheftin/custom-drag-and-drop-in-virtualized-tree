@@ -1,0 +1,111 @@
+.poc-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px;
+  gap: 12px;
+}
+
+.poc-app__header h2 {
+  margin-bottom: 8px;
+}
+
+.poc-app__controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.poc-app__controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.poc-app__controls input {
+  width: 70px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.poc-app__controls button {
+  padding: 4px 12px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #eee;
+}
+
+.poc-app__controls button:hover {
+  background: #ddd;
+}
+
+.poc-app__stats {
+  color: #666;
+  font-size: 13px;
+}
+
+.poc-app__table-container {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.poc-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.poc-toggle-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(0deg);
+  transition: transform 0.25s ease;
+}
+
+.poc-toggle-btn--expanded {
+  transform: rotate(90deg);
+}
+
+.poc-toggle-btn:hover {
+  color: #333;
+}
+
+.poc-toggle-placeholder {
+  flex-shrink: 0;
+  width: 18px;
+}
+
+.poc-name-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.poc-rank-text {
+  font-family: monospace;
+  color: #555;
+  font-size: 12px;
+}
+
+.poc-ghost-more {
+  color: #888;
+  font-style: italic;
+  font-size: 13px;
+}

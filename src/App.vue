@@ -8,7 +8,7 @@
         <label>Max children: <input v-model.number="opts.childrenToGenerate" type="number" min="1" max="20" /></label>
         <label>Max depth: <input v-model.number="opts.maxDepth" type="number" min="1" max="10" /></label>
         <button @click="regenerate">Regenerate</button>
-        <span class="poc-app__stats">{{ flatItems.length }} rows total</span>
+        <span class="poc-app__stats">{{ flatItems.length }} items (including children)</span>
       </div>
     </div>
     <div class="poc-app__table-container">
@@ -111,7 +111,7 @@ const columns: TableColumn[] = [
 ]
 
 const opts = reactive<MockDataFabricOptions>({
-  itemCount: 100,
+  itemCount: 20000,
   childrenProbability: 0.2,
   childrenToGenerate: 10,
   maxDepth: 5

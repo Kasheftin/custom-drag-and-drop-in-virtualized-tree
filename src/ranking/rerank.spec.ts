@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DENSITY_THRESHOLD,
   bucketIdOfRank,
   compareRankStrings,
   generateBalancedRankStrings,
+  generateRanksBetween,
+  isDenseRank,
   migrationDirection,
   nextBucket,
   normalizeRank,
+  parseRank,
+  rankBodyLength,
   rankForInsertion,
 } from './lexorank'
-import { planFullRerank, planPartialRerank, validateDomainRanks } from './rerank'
+import {
+  PARTIAL_RERANK_MAX_WINDOW,
+  PartialRerankTooLargeError,
+  planFullRerank,
+  planPartialRerank,
+  validateDomainRanks,
+} from './rerank'
 import type { RankedItem } from './types'
 
 function rankedItems(count: number, bucket: 0 | 1 | 2 = 0): RankedItem[] {
@@ -16,6 +27,18 @@ function rankedItems(count: number, bucket: 0 | 1 | 2 = 0): RankedItem[] {
     id: String.fromCharCode(97 + index),
     rank,
   }))
+}
+
+// Build a contiguous run of `count` dense (long-bodied) ranks strictly between two anchors, the way
+// repeated insertion into one hot interval would. `between` stays inside the short integer body until
+// its room is exhausted, so we descend toward the upper anchor until `lo` itself is dense — by then it
+// is decimal-adjacent to the anchor, so every rank generated in the remaining interval is dense too.
+function denseRunBetween(leftRank: string, rightRank: string, count: number): string[] {
+  const hi = parseRank(rightRank)
+  let lo = parseRank(leftRank)
+  let guard = 0
+  while (!isDenseRank(lo) && guard++ < 3000) lo = lo.between(hi)
+  return generateRanksBetween(lo, hi, count).map(rank => rank.toString())
 }
 
 describe('LexoRank adapter', () => {
@@ -67,6 +90,55 @@ describe('partial rerank planning', () => {
     expect(plan.updates.map(update => update.id)).toEqual(['c', 'd', 'e'])
     expect(plan.updates.some(update => update.id === 'a')).toBe(false)
     expect(plan.updates.some(update => update.id === 'g')).toBe(false)
+  })
+
+  it('walks an entire dense run plus its healthy boundary rows', () => {
+    const base = rankedItems(5) // a..e, healthy 6-char bodies
+    const run = denseRunBetween(base[1].rank, base[2].rank, 6).map((rank, index) => ({
+      id: `dense-${index}`,
+      rank,
+    }))
+    expect(run.every(item => isDenseRank(item.rank))).toBe(true)
+
+    const items = [...base, ...run]
+    const plan = planPartialRerank(items, 'dense-3', 0) // target a row inside the dense run
+
+    const affectedIds = plan.updates.map(update => update.id)
+    // the whole dense run and both boundary rows (b, c) are rewritten; a/d/e are not
+    for (const item of run) expect(affectedIds).toContain(item.id)
+    expect(affectedIds).toContain('b')
+    expect(affectedIds).toContain('c')
+    expect(affectedIds).not.toContain('a')
+    expect(affectedIds).not.toContain('d')
+    expect(plan.updates.length).toBeGreaterThan(3)
+
+    const updated = items.map(item => plan.updates.find(update => update.id === item.id) ?? item)
+    validateDomainRanks(updated, 0)
+    // repair restores headroom: rewritten ranks are far shorter than the dense originals
+    const repairedMax = Math.max(...plan.updates.map(update => rankBodyLength(update.rank)))
+    const denseMax = Math.max(...run.map(item => rankBodyLength(item.rank)))
+    expect(repairedMax).toBeLessThan(denseMax)
+  })
+
+  it('escalates to a full rerank when the dense region exceeds the window cap', () => {
+    const base = rankedItems(2) // a, b
+    const run = denseRunBetween(base[0].rank, base[1].rank, PARTIAL_RERANK_MAX_WINDOW + 5)
+      .map((rank, index) => ({ id: `dense-${index}`, rank }))
+    const items = [...base, ...run]
+
+    expect(() => planPartialRerank(items, 'dense-10', 0)).toThrow(PartialRerankTooLargeError)
+  })
+})
+
+describe('density metric', () => {
+  it('measures the base-36 body length ignoring the decimal separator', () => {
+    expect(rankBodyLength('0|0i0000:')).toBe(6)
+    expect(rankBodyLength('1|abcdef:xyz')).toBe(9)
+  })
+
+  it('flags ranks whose body exceeds the density threshold', () => {
+    expect(isDenseRank('0|000000:')).toBe(false)
+    expect(isDenseRank(`0|${'0'.repeat(DENSITY_THRESHOLD + 1)}:`)).toBe(true)
   })
 })
 

@@ -184,7 +184,7 @@ Therefore a complete LexoRank-like system needs two operations:
 
 The remainder of this article considers two complementary maintenance algorithms:
 
-- **partial rerank**, which repairs a small interval between stable boundaries;
+- **partial rerank**, which repairs a bounded local interval — a collision or a dense region — between stable boundaries;
 - **full bucket rerank**, which incrementally redistributes a complete ordering domain.
 
 The first minimizes writes in the common repair case. The second provides a safe fallback when local repair is no longer sufficient.
@@ -220,7 +220,7 @@ newRank = previousRank.between(nextRank)
 
 Only the moved item changes. This is why a midpoint-based rank is attractive: a normal reorder requires one persistent write rather than renumbering the entire list.
 
-The old proof of concept used a custom BigInt implementation for midpoint arithmetic. The extended version removes it and uses the open-source [`lexorank` package](https://www.npmjs.com/package/lexorank), whose source is available in [`kvandake/lexorank-ts`](https://github.com/kvandake/lexorank-ts).
+The old proof of concept used a custom BigInt implementation for midpoint arithmetic. The extended version removes it and uses the open-source [`lexorank` package](https://www.npmjs.com/package/lexorank) (pinned to `1.0.5` for reproducibility), whose source is available in [`kvandake/lexorank-ts`](https://github.com/kvandake/lexorank-ts).
 
 The library exposes the operations needed by the demo:
 
@@ -278,6 +278,9 @@ Children of B: bucket 2
 
 There is no conflict. The complete rank is only compared inside its domain.
 
+> **🖼 Figure suggestion — `fig-ordering-domains.svg`**
+> **Draw:** the `Root / A / B / A1 A2 / B1 B2` tree, but with each sibling list boxed as its own **ordering domain** and tinted a different colour: the root list (A, B), A's children (A1, A2), and B's children (B1, B2). Label each box with its own bucket (e.g. root = bucket 1, A's children = bucket 0, B's children = bucket 2) to show buckets are per-domain. Add a green "✓ comparable" arrow between A1 and A2, and a red "✗ never compared" arrow between A1 and B1, to drive home that ranks only mean something within one box.
+
 It also changes the cost model. A tree can contain one million nodes while its largest sibling list contains fifty items. A full rebalance of that sibling domain rewrites fifty ranks, not one million.
 
 This parent-scoped model is our adaptation for a hierarchical application. It should not be presented as a claim that Jira itself creates a bucket context for every arbitrary tree parent.
@@ -295,6 +298,9 @@ The reference implementation produces values such as:
 ```
 
 The prefix before `|` is the bucket. The remaining part is the rank body.
+
+> **🖼 Figure suggestion — `fig-rank-anatomy.svg`**
+> **Draw:** a single rank string, e.g. `1 | 0i0000 :`, blown up large with call-out labels pointing at each part: the leading `1` labelled **bucket** (0/1/2), the `|` as a **separator**, `0i0000` labelled **rank body (base‑36)**, and the trailing `:` labelled **integer/decimal marker**. Underneath, a small horizontal number line showing the three buckets as adjacent bands — everything in bucket 0 sorts before bucket 1 before bucket 2 — to make "the whole string sorts" visually obvious.
 
 The complete string participates in ordering. Consequently, all bucket-0 values sort before bucket-1 values, which sort before bucket-2 values.
 
@@ -409,17 +415,26 @@ If `k` items are repaired, the persistent cost is `k` rank updates. Locating the
 
 ### Expanding the window
 
-A collision is only one trigger. A valid interval can also be too dense. A practical algorithm can begin with a small window and expand until the external anchors provide enough target space.
+A collision is only one trigger. A valid interval can also be too *dense*: every rank is unique and well-formed, but the bodies have grown long because insertions kept subdividing the same interval. There are really three distinct conditions to keep separate:
 
-For example:
+- **syntactically invalid** — the value does not parse; reject it outright;
+- **duplicate** — two rows share a rank; repair the equal-rank run;
+- **valid but dense** — the ranks are fine individually, but the region has run low on cheap headroom.
+
+The demo detects the third case with a simple proxy: the length of a rank's base-36 body. Freshly balanced ranks stay short (a six-character integer body addresses billions of positions), so a body noticeably longer than that baseline is the operational signal of a hot interval. The repair seeds a window at the selected row and expands outward across every neighbouring row that is duplicate, dense, or in the wrong bucket, stopping at the first healthy short rank on each side. Those healthy rows become the fixed external anchors, so redistribution lands the whole region back in short, well-spaced ranks.
+
+> **🖼 Figure suggestion — `fig-partial-rerank.svg`**
+> **Draw:** a before/after of one sibling list rendered as a horizontal number line. **Before:** two short "healthy" anchor rows at the edges, and between them a cluster of rows whose ranks are visibly long (draw them crammed together with long strings) — the dense run. **After:** the same two anchors unchanged (highlight them as fixed), with the middle rows now evenly spaced and short again. Annotate that only the rows between the anchors were rewritten, and the anchors themselves never moved. A small inset can show the escalation case: if the anchors are too far apart (window > 256), the arrow points to "full rerank" instead.
+
+Crucially the window has a hard maximum:
 
 ```text
-initial local limit:      32 rows
-maximum expanded window: 256 rows
-full domain rebalance:    fallback
+expansion signal:        rank body length above the healthy baseline
+maximum expanded window: PARTIAL_RERANK_MAX_WINDOW (256 rows in the demo)
+past the maximum:         escalate to a full rerank of the domain
 ```
 
-The exact limits depend on transaction latency and write capacity. The important rule is that partial repair has a maximum. Otherwise a supposedly local operation gradually becomes an unbounded full rewrite without the operational protections of a full rebalance.
+The exact limit depends on transaction latency and write capacity. The important rule is that partial repair has a maximum. Otherwise a supposedly local operation gradually becomes an unbounded full rewrite without the operational protections of a full rebalance — so past the cap the demo throws rather than proceeding, and the UI points the user at the full rerank instead.
 
 Atlassian has a public, unresolved suggestion for localized LexoRank rebalancing, [JSWSERVER-16471](https://jira.atlassian.com/browse/JSWSERVER-16471). The issue explicitly describes cases where long values are concentrated in a small region while Jira's full balance touches the entire rank space. Our partial algorithm is an application-level exploration of that general idea, not a claim that Jira currently implements this exact boundary procedure.
 
@@ -650,9 +665,12 @@ Only the rank of `A2` changes. Its new rank belongs to `B`'s child ordering doma
 
 The children of `A2` remain untouched. Their ranks belong to a different domain whose owner is `A2` itself.
 
-This distinction is useful:
+Put simply, there are two rules:
 
-> An item's rank belongs to its parent's list. The rank context for an item's children belongs to that item as the domain owner.
+- An item's rank only means something **next to its siblings** — the other children of the same parent.
+- Each item **owns the list of its own children**, which is a separate ordering space.
+
+That is why moving an item is cheap. It gets one new rank in its new parent's list, and its own children come along untouched: their ranks live in the moved item's private list, not in the parent's.
 
 ---
 
@@ -677,10 +695,10 @@ Create an explicit record only when:
 - a failed operation needs recovery;
 - future non-default configuration requires persistence.
 
-A conceptual record is:
+A conceptual record — the demo calls it `OrderingState` (see `src/ranking/types.ts`) — is:
 
 ```ts
-type RankContext = {
+type OrderingState = {
   domainKey: string
   stableBucket: 0 | 1 | 2
   operation: null | {
@@ -691,9 +709,11 @@ type RankContext = {
     processed: number
     total: number
   }
-  version: bigint
+  version: number
 }
 ```
+
+The demo's concrete type is a leaner version of this — same idea, fewer fields (`domainId`, `stableBucket`, `operation`, `version`). A backend would use a monotonically increasing integer `version` for optimistic concurrency, exactly as the compare-and-swap examples below rely on.
 
 For the tree:
 
@@ -751,39 +771,24 @@ worker A schedules
 worker B schedules
 ```
 
-A sparse table needs a unique, non-null domain key and an atomic create-or-transition operation.
+The fix is a single atomic "claim the domain" step, keyed by the domain. As pseudocode:
 
-Conceptually:
-
-```sql
-INSERT INTO rank_context (
-  domain_key,
-  stable_bucket,
-  operation_status,
-  source_bucket,
-  destination_bucket,
-  version
-)
-VALUES (
-  :domainKey,
-  0,
-  'SCHEDULED',
-  0,
-  1,
-  1
-)
-ON CONFLICT (domain_key) DO UPDATE
-SET
-  operation_status = 'SCHEDULED',
-  source_bucket = rank_context.stable_bucket,
-  destination_bucket = :nextBucket,
-  version = rank_context.version + 1
-WHERE rank_context.operation_status IS NULL;
+```text
+atomically, for this domainKey:
+  if no context exists:
+      create { stableBucket: 0, operation: scheduled(0 → 1), version: 1 }
+      → claimed
+  else if the context has no active operation:
+      set operation = scheduled(stableBucket → nextBucket)
+      bump version
+      → claimed
+  else:
+      → already busy; do nothing
 ```
 
-The exact SQL is database-specific. The invariant is that one atomic operation either acquires the domain or reports that another operation already exists.
+The invariant is what matters, not the mechanism: one atomic step either acquires the domain or reports that another operation already owns it. A backend expresses this with whatever compare-and-swap its store provides; the browser demo simply runs one migration at a time and disables the controls that could start a second.
 
-For nullable root parents, avoid relying blindly on `UNIQUE(tree_id, parent_id)`, because null handling differs among databases. A normalized domain key such as `tree-1:root` or `tree-1:parent:A` is simpler.
+One practical note that survives the move to a backend: identify each domain by a single string key such as `tree-1:root` or `tree-1:parent:A`. It sidesteps the awkward "the root parent is null" case that a two-column `(treeId, parentId)` key runs into.
 
 ---
 
@@ -823,30 +828,24 @@ The balancer must use a compatible lock order. Inconsistent ordering between use
 
 ---
 
-## A Layered Trigger Policy
+## When Each Rerank Fires
 
-Local repair and buckets are not alternative ranking systems. They form a hierarchy:
+Midpoint insertion, partial rerank, and full rerank are not competing systems. They fire in order, and each heavier step runs only when the cheaper one below it runs out of room. Concretely, an insertion or move flows through these steps:
 
-```text
-normal midpoint insertion
-        ↓
-rank length or density threshold
-        ↓
-bounded partial rerank
-        ↓
-expand local window to configured maximum
-        ↓
-full bucket rerank of one sibling domain
-```
+1. **Insert the normal way.** Generate one midpoint rank between the item's new neighbours and write that single row. Almost every operation stops here.
 
-The trigger can run in several ways:
+2. **Look at the rank you just produced.** If its body is still short, you are done. If it has grown past the length threshold, this interval is getting dense and needs repair.
 
-- synchronously after an insertion that crosses a threshold;
-- asynchronously by scheduling maintenance for the affected domain;
-- periodically through an integrity scan;
-- manually through an administrative action.
+3. **Try a partial rerank — but count as you go.** Walk outward from the dense spot toward the nearest healthy row on each side, which will serve as the fixed anchors, keeping a running count of the rows inside that window. If the window stays under the maximum, redistribute it and stop: the repair is local and fits in one transaction.
 
-The scheduling mechanism is less important than the invariants. A synchronous local repair should remain small enough for one transaction. A multi-transaction full repair needs explicit state, progress, recovery, and coordination.
+4. **If a boundary is too far away, escalate.** If the nearest healthy anchor is so distant that the window would exceed the maximum, cancel the partial rerank and run a full rerank of that one sibling domain instead. This is the rare, heavier path — and the reason full rerank exists.
+
+So the length threshold in step 2 is what decides *whether* to repair, and the window count in step 3 is what decides *which* repair — partial or full.
+
+> **🖼 Figure suggestion — `fig-escalation-flow.svg`**
+> **Draw:** a top-to-bottom flowchart of the four steps. Box 1 "Insert midpoint (1 write)" → diamond "rank too long?" with a **No → done** exit. **Yes** flows to box "Partial rerank: expand window to nearest healthy anchors" → diamond "window ≤ max?". **Yes → redistribute window (k writes), done.** **No → Full rerank of the whole sibling domain (n writes).** Keep the happy path (the No-at-step-2 exit) visually dominant to reinforce that almost every operation stops at step 1.
+
+When step 2's check runs is an implementation choice: right after each insertion that crosses the threshold, on a scheduled maintenance pass for the affected domain, during a periodic integrity scan, or from a manual admin action. The timing is less important than the invariants: a partial repair must stay small enough for one transaction, while a full rerank needs explicit state, progress, recovery, and coordination.
 
 ---
 
@@ -880,7 +879,7 @@ These approaches move complexity into queries, joins, garbage collection, and bl
 
 ## Walking Through the Demo
 
-The extended proof of concept keeps the original virtualized tree and adds three experiments.
+The extended proof of concept keeps the original virtualized tree and adds four experiments.
 
 ### 1. Break a rank deliberately
 
@@ -890,19 +889,23 @@ Copy a sibling's rank and press Enter. The demo allows the duplicate and applies
 
 Syntactically invalid values are rejected. This keeps deliberate corruption precise rather than allowing an unparsable value to crash every sort.
 
-### 2. Repair a local interval
+### 2. Repair a collision
 
-Click **Partial rerank** on one of the colliding rows.
+Click **Partial rerank** on one of the duplicated rows.
 
-The application finds the collision run, includes the adjacent boundary rows, keeps the external anchors fixed, and rewrites only that small window.
+The application finds the equal-rank run, includes the adjacent boundary rows, keeps the external anchors fixed, and rewrites only that small window. The status message reports the number of affected siblings and their positions in the domain.
 
-The status message reports the number of affected siblings and their positions in the domain.
+### 3. Create and repair a dense interval
 
-### 3. Migrate the root domain
+Manually editing enough neighbouring rows into a dense state is tedious, so the header has a **Densify root** button. It inserts a short run of long, adjacent ranks into a single root interval — the same shape a hot spot accumulates when insertions repeatedly target one gap over time. (Reaching those lengths through real midpoint insertion takes many operations; the button just fast-forwards to the interesting state.)
 
-Click **Full rerank (root)**.
+Now click **Partial rerank** on any row inside that run. The repair walks the whole dense run using the rank-body-length signal, pulls in one healthy boundary row on each side as fixed anchors, and redistributes the entire region into short, well-spaced ranks. The status message shows that **more than the target's two neighbours** were rewritten — the affected count is bounded by the size of the dense region, not fixed at three. This is the behaviour the earlier "expanding the window" section describes, made visible.
 
-Only root items advance to the next bucket. Expanded children keep their independent bucket values. This makes the domain boundary visible directly in the table.
+If the dense region ever grows past the configured maximum window, partial repair refuses and directs you to a full rerank instead, so a "local" operation can never silently become an unbounded rewrite.
+
+### 4. Migrate a domain
+
+Click **Full rerank (root)** to migrate the root list, or **Rerank children** on any parent row to migrate that parent's child domain. Only the chosen domain advances to the next bucket; every other domain keeps its independent bucket value. This makes the domain boundary visible directly in the table.
 
 The browser processes bounded batches per animation frame. That batching models throttling and keeps a large in-memory tree responsive; it is not a substitute for backend transactions.
 
@@ -914,7 +917,7 @@ Click the action repeatedly to observe:
 2 → 0: head to tail
 ```
 
-After the third transition, the root context returns to implicit bucket 0 and its sparse state record disappears.
+After the third transition, the domain's context returns to implicit bucket 0 and its sparse state record disappears.
 
 ---
 

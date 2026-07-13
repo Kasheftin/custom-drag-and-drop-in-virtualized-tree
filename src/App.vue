@@ -18,9 +18,10 @@
         <label>Max children: <input v-model.number="opts.childrenToGenerate" :disabled="fullProgress.active" type="number" min="1" max="20" /></label>
         <label>Max depth: <input v-model.number="opts.maxDepth" :disabled="fullProgress.active" type="number" min="1" max="10" /></label>
         <button :disabled="fullProgress.active" @click="regenerate">Regenerate</button>
-        <button class="poc-primary-btn" :disabled="fullProgress.active || rootItems.length === 0" @click="triggerFullRerank">
+        <button class="poc-primary-btn" :disabled="fullProgress.active || rootItems.length === 0" @click="runFullRerank(null)">
           {{ fullProgress.active ? `Reranking ${fullProgress.processed}/${fullProgress.total}` : 'Full rerank (root)' }}
         </button>
+        <button :disabled="fullProgress.active || rootItems.length < 2" title="Insert a run of long, adjacent ranks into one root interval to demonstrate density repair" @click="densifyRoot">Densify root</button>
         <span class="poc-app__stats">{{ flatItems.length }} visible / {{ items.length }} total</span>
       </div>
 
@@ -72,7 +73,6 @@
                     :aria-label="`Rank for ${entry.name}`"
                     :aria-invalid="!!rankEditError"
                     :title="rankEditError || 'Enter a complete LexoRank value'"
-                    autofocus
                     @keydown.enter.prevent="commitRankEdit(entry)"
                     @keydown.esc.prevent="cancelRankEdit"
                     @blur="commitRankEdit(entry)"
@@ -92,12 +92,22 @@
                 </div>
               </template>
               <template v-else-if="column.key === 'actions'">
-                <button
-                  class="poc-row-action"
-                  :disabled="fullProgress.active"
-                  :aria-label="`Partial rerank around ${entry.name}`"
-                  @click.stop="triggerPartialRerank(entry)"
-                >Partial rerank</button>
+                <div class="poc-row-actions">
+                  <button
+                    class="poc-row-action"
+                    :disabled="fullProgress.active"
+                    :aria-label="`Partial rerank around ${entry.name}`"
+                    @click.stop="triggerPartialRerank(entry)"
+                  >Partial rerank</button>
+                  <button
+                    v-if="entry.childrenCount > 0"
+                    class="poc-row-action"
+                    :disabled="fullProgress.active"
+                    :aria-label="`Full rerank of ${entry.name}'s children`"
+                    title="Full rerank of this item's children domain"
+                    @click.stop="runFullRerank(entry.id)"
+                  >Rerank children</button>
+                </div>
               </template>
             </template>
           </StickyTable>
@@ -145,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, shallowRef } from 'vue'
+import { computed, nextTick, reactive, ref, shallowRef } from 'vue'
 import StickyTable from './components/StickyTable.vue'
 import DragContainer from './components/DragContainer.vue'
 import type { TableColumn } from './components/StickyTable.vue'
@@ -155,10 +165,13 @@ import { ROOT_DOMAIN_ID, type FlatItem, type Item, type ItemRelation } from './t
 import {
   bucketIdOfRank,
   compareRankedItems,
+  generateRanksBetween,
+  isDenseRank,
   normalizeRank,
+  parseRank,
   rankForInsertion,
 } from './ranking/lexorank'
-import { planFullRerank, planPartialRerank, validateDomainRanks } from './ranking/rerank'
+import { PartialRerankTooLargeError, planFullRerank, planPartialRerank, validateDomainRanks } from './ranking/rerank'
 import type { BucketId, OrderingState, RankUpdate } from './ranking/types'
 
 const rowHeight = 36
@@ -171,7 +184,7 @@ const stickyTableRef = ref<{ containerEl: HTMLElement | null } | null>(null)
 const columns: TableColumn[] = [
   { key: 'name', title: 'Name' },
   { key: 'rank', title: 'Rank (click to edit)', width: 280 },
-  { key: 'actions', title: 'Maintenance', width: 150 },
+  { key: 'actions', title: 'Maintenance', width: 260 },
 ]
 
 const opts = reactive<MockDataFabricOptions>({
@@ -413,11 +426,18 @@ function applyDrop(entries: FlatItem[], target: DropTarget) {
   }
 }
 
-function startRankEdit(entry: FlatItem) {
+async function startRankEdit(entry: FlatItem) {
   if (fullProgress.active) return
   editingRankId.value = entry.id
   editingRankValue.value = entry.rank
   rankEditError.value = ''
+  // The virtualized table recycles row DOM nodes, so the `autofocus` attribute is unreliable.
+  // Only one `.poc-rank-input` is ever mounted (the row whose id matches editingRankId), so we
+  // focus it manually once Vue has patched the DOM.
+  await nextTick()
+  const input = stickyTableRef.value?.containerEl?.querySelector<HTMLInputElement>('.poc-rank-input')
+  input?.focus()
+  input?.select()
 }
 
 function cancelRankEdit() {
@@ -465,7 +485,50 @@ function triggerPartialRerank(entry: FlatItem) {
       `Partial rerank rewrote ${plan.updates.length} of ${plan.domainSize} siblings (positions ${plan.startIndex + 1}–${plan.endIndex + 1}) in bucket ${stableBucket}.`,
     )
   } catch (error) {
+    if (error instanceof PartialRerankTooLargeError) {
+      const parentId = parentMap.value[entry.id] ?? null
+      setNotice('error', `${error.message}. Use "${parentId === null ? 'Full rerank (root)' : 'Rerank children'}" instead.`)
+      return
+    }
     setNotice('error', error instanceof Error ? error.message : 'Partial rerank failed')
+  }
+}
+
+const DENSIFY_COUNT = 8
+
+// Demo aid: reproduce what repeated real-world insertions into one hot interval would do over time.
+// It inserts a run of long, adjacent ranks into a single root interval so the density-driven partial
+// rerank has a genuine dense region to repair (rather than requiring hundreds of manual drags).
+function densifyRoot() {
+  if (fullProgress.active) return
+  const roots = rootItems.value
+  if (roots.length < 2) return
+
+  try {
+    const pivot = Math.max(1, Math.floor(roots.length / 2))
+    const a = roots[pivot - 1]
+    const b = roots[pivot]
+    const hi = parseRank(b.rank)
+    let lo = parseRank(a.rank)
+    // `between` keeps a short integer body until its room is exhausted, so descend toward b until lo
+    // is itself dense — by then it sits in a decimal-scale interval just below b, and every rank we
+    // generate in the remaining gap is dense too.
+    let guard = 0
+    while (!isDenseRank(lo) && guard++ < 3000) lo = lo.between(hi)
+
+    const run = generateRanksBetween(lo, hi, DENSIFY_COUNT)
+    const newItems: Item[] = run.map((rank, index) => ({
+      id: crypto.randomUUID(),
+      name: `${a.name} · dense ${index + 1}`,
+      rank: rank.toString(),
+    }))
+    items.value = [...items.value, ...newItems]
+    setNotice(
+      'info',
+      `Inserted ${newItems.length} dense rows between ${a.name} and ${b.name}. Click "Partial rerank" on any of them to repair the whole run.`,
+    )
+  } catch (error) {
+    setNotice('error', error instanceof Error ? error.message : 'Could not densify the root domain')
   }
 }
 
@@ -473,18 +536,29 @@ function nextAnimationFrame(): Promise<void> {
   return new Promise(resolve => requestAnimationFrame(() => resolve()))
 }
 
-async function triggerFullRerank() {
-  if (fullProgress.active || rootItems.value.length === 0) return
+function domainLabel(parentId: string | null): string {
+  if (parentId === null) return 'root'
+  return `${itemById.value.get(parentId)?.name ?? 'item'}'s children`
+}
+
+// Full rerank of a single ordering domain: the root list (parentId === null) or any parent's direct
+// children. planFullRerank is domain-agnostic; the only per-domain state is which id we key on.
+async function runFullRerank(parentId: string | null) {
+  if (fullProgress.active) return
+  const domainItems = siblingsForParent(parentId)
+  if (domainItems.length === 0) return
   cancelRankEdit()
 
-  const state = explicitOrderingState(null) ?? makeOrderingState(ROOT_DOMAIN_ID)
+  const id = domainId(parentId)
+  const label = domainLabel(parentId)
+  const state = explicitOrderingState(parentId) ?? makeOrderingState(id)
   if (state.operation) {
-    setNotice('error', 'The root ordering domain already has an active operation.')
+    setNotice('error', `The ${label} ordering domain already has an active operation.`)
     return
   }
 
   try {
-    const plan = planFullRerank(rootItems.value, state.stableBucket)
+    const plan = planFullRerank(domainItems, state.stableBucket)
     fullProgress.active = true
     fullProgress.processed = 0
     fullProgress.total = plan.updates.length
@@ -501,13 +575,13 @@ async function triggerFullRerank() {
         total: plan.updates.length,
       },
     })
-    setNotice('info', `Migrating root ranks ${plan.sourceBucket} → ${plan.destinationBucket}; child domains are unchanged.`)
+    setNotice('info', `Migrating ${label} ranks ${plan.sourceBucket} → ${plan.destinationBucket}; other domains are unchanged.`)
 
     for (let start = 0; start < plan.migrationUpdates.length; start += FULL_RERANK_BATCH_SIZE) {
       const batch = plan.migrationUpdates.slice(start, start + FULL_RERANK_BATCH_SIZE)
       applyItemUpdates(batch)
       fullProgress.processed += batch.length
-      const current = orderingStates.value.get(ROOT_DOMAIN_ID)!
+      const current = orderingStates.value.get(id)!
       replaceOrderingState({
         ...current,
         operation: current.operation ? { ...current.operation, processed: fullProgress.processed } : null,
@@ -515,23 +589,23 @@ async function triggerFullRerank() {
       await nextAnimationFrame()
     }
 
-    validateDomainRanks(rootItems.value, plan.destinationBucket)
-    const completedState = orderingStates.value.get(ROOT_DOMAIN_ID)!
+    validateDomainRanks(siblingsForParent(parentId), plan.destinationBucket)
+    const completedState = orderingStates.value.get(id)!
     const nextState = {
       ...completedState,
       stableBucket: plan.destinationBucket,
       operation: null,
       version: completedState.version + 1,
     }
-    if (plan.destinationBucket === 0) deleteOrderingState(null)
+    if (plan.destinationBucket === 0) deleteOrderingState(parentId)
     else replaceOrderingState(nextState)
     setNotice(
       'success',
-      `Full root rerank completed: ${plan.updates.length} ranks migrated into bucket ${plan.destinationBucket}. Child buckets did not change.`,
+      `Full rerank of ${label} completed: ${plan.updates.length} ranks migrated into bucket ${plan.destinationBucket}. Other domains did not change.`,
     )
   } catch (error) {
-    const current = orderingStates.value.get(ROOT_DOMAIN_ID)
-    if (current?.stableBucket === 0) deleteOrderingState(null)
+    const current = orderingStates.value.get(id)
+    if (current?.stableBucket === 0) deleteOrderingState(parentId)
     else if (current) replaceOrderingState({ ...current, operation: null })
     setNotice('error', error instanceof Error ? error.message : 'Full rerank failed')
   } finally {

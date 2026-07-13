@@ -48,6 +48,24 @@ export function rankInBucket(rank: LexoRank, bucket: BucketId): LexoRank {
   return LexoRank.from(minimumRank(bucket).getBucket(), rank.getDecimal())
 }
 
+// Freshly balanced ranks in this demo keep a 6-character integer body (36^6 ≈ 2.2B slots is far
+// more than any sibling domain here), so they never accumulate decimals. Repeated insertion into a
+// single hot interval, however, grows the body one precision digit at a time. A body noticeably
+// longer than the healthy baseline is the operational "density" signal a partial rerank repairs.
+export const DENSITY_THRESHOLD = 9
+
+// The length of a rank's base-36 body (everything after `bucket|`, ignoring the `:` that separates
+// LexoRank's integer and decimal parts). Grows as an interval is subdivided; used as a density proxy.
+export function rankBodyLength(rank: LexoRank | string): number {
+  const value = typeof rank === 'string' ? rank.trim() : rank.toString()
+  const body = value.split('|')[1] ?? ''
+  return body.replace(/:/g, '').length
+}
+
+export function isDenseRank(rank: LexoRank | string): boolean {
+  return rankBodyLength(rank) > DENSITY_THRESHOLD
+}
+
 export function compareRankStrings(left: string, right: string): number {
   return parseRank(left).compareTo(parseRank(right))
 }

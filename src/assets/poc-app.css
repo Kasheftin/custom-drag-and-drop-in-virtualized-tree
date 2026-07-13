@@ -254,6 +254,12 @@
   outline-color: rgb(194 65 65 / 15%);
 }
 
+.poc-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .poc-row-action {
   padding: 4px 8px;
   border: 1px solid #aab5c3;

@@ -4,6 +4,8 @@ export type Item = {
   rank: string
 }
 
+export const ROOT_DOMAIN_ID = '__root__'
+
 export type ItemRelation = {
   id: string
   fromId: string

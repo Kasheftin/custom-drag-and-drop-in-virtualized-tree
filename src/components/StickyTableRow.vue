@@ -30,6 +30,8 @@ const emit = defineEmits<{
 const rowEl = ref<HTMLElement | null>(null)
 
 function onMouseDown(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  if (target?.closest('button, input, textarea, select, a, [contenteditable="true"]')) return
   if (rowEl.value) {
     emit('dragstart', event, rowEl.value, props.entry)
   }

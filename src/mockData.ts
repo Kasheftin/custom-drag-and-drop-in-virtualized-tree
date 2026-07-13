@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
-import { LexoRank } from './lexirank/LexoRank'
 import type { Item, ItemRelation } from './types'
+import { generateBalancedRankStrings } from './ranking/lexorank'
 
 export type MockDataFabricOptions = {
   itemCount: number
@@ -9,8 +9,6 @@ export type MockDataFabricOptions = {
   maxDepth: number
 }
 
-const lexoRank = new LexoRank()
-
 let nameCounter = 0
 function nextName(): string {
   nameCounter++
@@ -18,19 +16,7 @@ function nextName(): string {
 }
 
 function generateRanks(count: number): string[] {
-  if (count === 0) return []
-  const ranks: string[] = []
-  // Start from MID_CHAR and go backwards to have ascending ranks
-  let current = lexoRank.MID_CHAR
-  for (let i = 0; i < count; i++) {
-    if (i === 0) {
-      ranks.push(current)
-    } else {
-      current = lexoRank.getPrevRank(current)
-      ranks.unshift(current)
-    }
-  }
-  return ranks
+  return generateBalancedRankStrings(count, 0)
 }
 
 function generateChildren(

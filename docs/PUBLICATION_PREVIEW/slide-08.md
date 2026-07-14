@@ -1,5 +1,7 @@
 # Slide 8 — See it live
 
+**Rendered image:** [`slide-08.png`](../assets/carousel/slide-08.png)
+
 **Purpose:** Show there's an interactive artifact — lower the barrier from "read" to "play."
 
 **On-slide text**

@@ -1,5 +1,7 @@
 # Slide 3 — The midpoint trick (and its catch)
 
+**Rendered image:** [`slide-03.png`](../assets/carousel/slide-03.png)
+
 **Purpose:** Introduce fractional / lexicographic ranks — the standard fix — and foreshadow its limit.
 
 **On-slide text**

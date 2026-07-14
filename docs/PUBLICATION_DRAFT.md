@@ -555,11 +555,19 @@ This has several advantages for a proof of concept:
 
 The trade-off is that the gaps are balanced by recursive subdivision rather than by the exact proportional integer formula. They can differ by roughly a factor of two. That is sufficient to restore substantial headroom, and concurrent inserts would make a perfectly equal distribution temporary anyway.
 
+One point is worth stating explicitly, because it becomes important in the next section: for the domain *as planned*, this pass produces the complete set of target ranks at once, up front. Every item that exists when the plan is built gets its destination rank fixed here — keyed to its position in the sorted domain, anchored to the destination bucket's own `min` and `max` sentinels — before a single row is migrated. The result is fully deterministic and independent of any migration ordering.
+
+"As planned" is the important qualifier. The prepared set covers exactly the rows present when planning ran; it is not a promise that no new row can appear while the migration is in flight. A row inserted afterward is not a missing slot in this set — it was never in it. How such a late arrival gets a destination rank is covered under the mixed-bucket policy below.
+
 ---
 
 ## Migration Direction Preserves One Boundary
 
 The destination bucket's lexical position determines migration direction.
+
+Before reading the steps below, keep one thing in mind: the `target-*` values are **not** generated during the walk. They were all fixed by the balanced pass in the previous section. Direction chooses only the *order in which the pre-computed ranks are written*, so that every intermediate layout remains a single valid `source | destination` boundary. It never changes a rank's value.
+
+This ordering is not merely a nicety — targets *cannot* be derived incrementally from neighbors even if we wanted to. Mid-migration, a row's neighbors sit in a different bucket, and `generateRanksBetween` rejects cross-bucket anchors. Anchoring every target to the destination bucket's own fixed sentinels is precisely what makes the plan deterministic and resumable: a crash halfway through does not change what any remaining row's rank should be.
 
 For `0 → 1` and `1 → 2`, the destination bucket sorts after the source bucket. The valid intermediate layout is:
 
@@ -640,6 +648,8 @@ At the mixed boundary, the application needs an explicit policy. The policy used
 For `0 → 1`, generate after the last source row and before the maximum source marker. For `2 → 0`, generate before the first source row and after the minimum source marker.
 
 This keeps user operations from advancing the destination boundary unexpectedly. It may add one more row for the balancer to migrate.
+
+This is also the answer to a question the upfront target set raises: what happens when the migration reaches a row that was inserted after planning and therefore has no prepared rank? It is not looked up in the prepared array and it is not interpolated between two prepared neighbours — there is no reserved slot to fill. It is migrated on the fly, exactly like any other row, by generating a destination rank relative to its already-migrated neighbour. Concretely, for a `0 → 1` migration a row inserted at the head is migrated last (tail-to-head), so by the time it is reached every other row already sits in the destination bucket; its target is generated just below the current smallest destination rank. Because the balanced pass fills strictly *between* the bucket's `min` and `max` sentinels and never emits the endpoints, a reserved gap always remains at each end to absorb such an arrival. In other words, "the balancer migrates the new row later" means the balancer generates that row's rank when it gets there — the prepared set is the plan for the rows that existed, not a fixed-size array the migration is bound to.
 
 The public Atlassian material establishes that ranking and balancing require coordination, but it does not document the exact internal branch Jira uses for every insertion at a mixed boundary. Therefore the source-bucket rule is identified here as an engineering policy, not an assertion about undisclosed Jira code.
 

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Anatomy of a complete LexoRank value</title>
+  <desc id="desc">A complete rank contains a bucket prefix, separator, base-36 rank body, and an integer-decimal marker.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="15" stdDeviation="20" flood-color="#102437" flood-opacity=".14"/></filter>
+    <style>
+      .sans{font-family:Inter,"Segoe UI",Arial,sans-serif}.mono{font-family:"Cascadia Mono",Consolas,monospace}
+      .title{font:700 44px Inter,"Segoe UI",Arial,sans-serif;fill:#0a2237}.sub{font:400 24px Inter,"Segoe UI",Arial,sans-serif;fill:#506477}
+      .call{font:700 22px Inter,"Segoe UI",Arial,sans-serif;fill:#0a2237}.hint{font:400 18px Inter,"Segoe UI",Arial,sans-serif;fill:#607385}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#f7f4ec"/>
+  <text x="88" y="84" class="title">Anatomy of a complete rank</text>
+  <text x="88" y="122" class="sub">The bucket is part of the sortable value; the body positions an item inside that bucket.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="180" y="205" width="1240" height="330" rx="38" fill="#fff" stroke="#d7e0e7" stroke-width="2"/>
+    <rect x="305" y="288" width="142" height="132" rx="28" fill="#ff9b52"/>
+    <text x="376" y="374" text-anchor="middle" class="mono" font-size="82" font-weight="800" fill="#082033">1</text>
+    <text x="495" y="376" text-anchor="middle" class="mono" font-size="82" font-weight="700" fill="#52697b">|</text>
+    <rect x="548" y="288" width="495" height="132" rx="28" fill="#e5f8f5" stroke="#1ec8bb" stroke-width="2"/>
+    <text x="795" y="374" text-anchor="middle" class="mono" font-size="76" font-weight="700" fill="#0a4f49">0i0000</text>
+    <rect x="1090" y="288" width="120" height="132" rx="28" fill="#efecff"/>
+    <text x="1150" y="374" text-anchor="middle" class="mono" font-size="82" font-weight="700" fill="#6254d4">:</text>
+
+    <path d="M376 420V468H260" fill="none" stroke="#ff9b52" stroke-width="3"/>
+    <text x="280" y="494" text-anchor="end" class="call">bucket</text><text x="270" y="520" text-anchor="end" class="hint">0 / 1 / 2</text>
+    <path d="M495 420V468H520" fill="none" stroke="#8da0af" stroke-width="3"/>
+    <text x="530" y="494" class="call">separator</text><text x="530" y="520" class="hint">bucket | body</text>
+    <path d="M795 420V468" fill="none" stroke="#1ec8bb" stroke-width="3"/>
+    <text x="795" y="494" text-anchor="middle" class="call">rank body</text><text x="795" y="520" text-anchor="middle" class="hint">base-36 position</text>
+    <path d="M1150 420V468H1235" fill="none" stroke="#8b7cf6" stroke-width="3"/>
+    <text x="1190" y="494" class="call">marker</text><text x="1190" y="520" class="hint">integer / fractional form</text>
+  </g>
+
+  <text x="180" y="628" class="sans" font-size="21" font-weight="700" fill="#3c5264">Lexical bucket order</text>
+  <g transform="translate(180 660)">
+    <rect width="390" height="112" rx="22" fill="#dff8f5" stroke="#1ec8bb" stroke-width="2"/>
+    <text x="32" y="45" class="sans" font-size="20" font-weight="800" fill="#0f746b">BUCKET 0</text><text x="32" y="80" class="mono" font-size="25" fill="#0a4f49">0|…</text>
+    <path d="M403 56H470" stroke="#7f919f" stroke-width="4"/><path d="M470 56L452 44V68Z" fill="#7f919f"/>
+    <rect x="484" width="390" height="112" rx="22" fill="#fff0e4" stroke="#ff9b52" stroke-width="2"/>
+    <text x="516" y="45" class="sans" font-size="20" font-weight="800" fill="#b85d1c">BUCKET 1</text><text x="516" y="80" class="mono" font-size="25" fill="#8e4612">1|…</text>
+    <path d="M887 56H954" stroke="#7f919f" stroke-width="4"/><path d="M954 56L936 44V68Z" fill="#7f919f"/>
+    <rect x="968" width="390" height="112" rx="22" fill="#efecff" stroke="#8b7cf6" stroke-width="2"/>
+    <text x="1000" y="45" class="sans" font-size="20" font-weight="800" fill="#6254d4">BUCKET 2</text><text x="1000" y="80" class="mono" font-size="25" fill="#5144b8">2|…</text>
+  </g>
+  <text x="800" y="833" text-anchor="middle" class="sans" font-size="21" fill="#52697b">Compare complete ranks only inside one ordering domain.</text>
+</svg>

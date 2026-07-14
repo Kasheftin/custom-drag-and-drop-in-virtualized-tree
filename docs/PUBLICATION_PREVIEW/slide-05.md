@@ -1,5 +1,7 @@
 # Slide 5 — Fix #1: Partial rerank (local repair)
 
+**Rendered image:** [`slide-05.png`](../assets/carousel/slide-05.png)
+
 **Purpose:** First maintenance tool — repair just the crowded region, cheaply.
 
 **On-slide text**

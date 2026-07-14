@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">LexoRank maintenance escalation flow</title>
+  <desc id="desc">Normal midpoint insertion is followed by partial rerank only for long ranks, then full domain rerank only when the local repair window exceeds its maximum.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#718697"/></marker>
+    <style>
+      .sans{font-family:Inter,"Segoe UI",Arial,sans-serif}.title{font:700 44px Inter,"Segoe UI",Arial,sans-serif;fill:#0a2237}.sub{font:400 24px Inter,"Segoe UI",Arial,sans-serif;fill:#506477}
+      .boxTitle{font:750 24px Inter,"Segoe UI",Arial,sans-serif;fill:#0a2237}.boxSub{font:400 18px Inter,"Segoe UI",Arial,sans-serif;fill:#617688}.cost{font:800 19px Inter,"Segoe UI",Arial,sans-serif}.choice{font:750 18px Inter,"Segoe UI",Arial,sans-serif}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#f7f4ec"/>
+  <text x="88" y="84" class="title">One maintenance ladder, cheapest step first</text>
+  <text x="88" y="122" class="sub">Almost every operation takes the one-write path; heavier repairs are conditional fallbacks.</text>
+
+  <path d="M386 345H440" stroke="#718697" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M685 345H786" stroke="#718697" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1020 345H1125" stroke="#718697" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M563 446V540H520V580" fill="none" stroke="#188d7c" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1243 446V530H770V580" fill="none" stroke="#188d7c" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1356 345H1480V674H1430" fill="none" stroke="#8b7cf6" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <g>
+    <rect x="88" y="248" width="290" height="194" rx="28" fill="#e1faf6" stroke="#1ec8bb" stroke-width="3"/>
+    <circle cx="133" cy="294" r="25" fill="#1ec8bb"/><text x="133" y="302" text-anchor="middle" class="sans" font-size="22" font-weight="850" fill="#08231f">1</text>
+    <text x="170" y="302" class="boxTitle">Insert midpoint</text>
+    <text x="122" y="351" class="boxSub">Generate one rank between</text><text x="122" y="378" class="boxSub">the destination neighbours.</text>
+    <rect x="122" y="397" width="110" height="30" rx="15" fill="#128d7e"/><text x="177" y="418" text-anchor="middle" class="cost" fill="#fff">1 write</text>
+  </g>
+
+  <g>
+    <path d="M563 243L676 345L563 447L450 345Z" fill="#fff" stroke="#ff9b52" stroke-width="3"/>
+    <text x="563" y="333" text-anchor="middle" class="boxTitle">Rank body</text><text x="563" y="363" text-anchor="middle" class="boxTitle">too long?</text>
+  </g>
+
+  <g>
+    <rect x="794" y="248" width="295" height="194" rx="28" fill="#fff" stroke="#cbd7df" stroke-width="3"/>
+    <circle cx="838" cy="294" r="25" fill="#24455f"/><text x="838" y="302" text-anchor="middle" class="sans" font-size="22" font-weight="850" fill="#fff">2</text>
+    <text x="875" y="302" class="boxTitle">Expand</text>
+    <text x="828" y="351" class="boxSub">Find the nearest healthy</text><text x="828" y="378" class="boxSub">anchors around the interval.</text>
+  </g>
+
+  <g>
+    <path d="M1243 243L1356 345L1243 447L1130 345Z" fill="#fff" stroke="#8b7cf6" stroke-width="3"/>
+    <text x="1243" y="333" text-anchor="middle" class="boxTitle">Window</text><text x="1243" y="363" text-anchor="middle" class="boxTitle">≤ maximum?</text>
+  </g>
+
+  <g>
+    <rect x="335" y="590" width="250" height="96" rx="28" fill="#e1faf6" stroke="#1ec8bb" stroke-width="3"/>
+    <text x="460" y="632" text-anchor="middle" class="boxTitle">Done</text>
+    <text x="460" y="662" text-anchor="middle" class="boxSub">No maintenance needed.</text>
+  </g>
+
+  <g>
+    <rect x="620" y="590" width="340" height="168" rx="28" fill="#e1faf6" stroke="#1ec8bb" stroke-width="3"/>
+    <text x="652" y="640" class="boxTitle">Partial rerank</text>
+    <text x="652" y="678" class="boxSub">Redistribute the bounded interval</text>
+    <text x="652" y="704" class="boxSub">between fixed external anchors.</text>
+    <rect x="652" y="719" width="108" height="30" rx="15" fill="#128d7e"/>
+    <text x="708" y="741" text-anchor="middle" class="cost" fill="#fff">k writes</text>
+  </g>
+
+  <g>
+    <rect x="1062" y="590" width="360" height="168" rx="28" fill="#efecff" stroke="#8b7cf6" stroke-width="3"/>
+    <text x="1094" y="640" class="boxTitle">Full bucket rerank</text>
+    <text x="1094" y="678" class="boxSub">Migrate the complete sibling domain</text>
+    <text x="1094" y="704" class="boxSub">in bounded online batches.</text>
+    <rect x="1094" y="720" width="108" height="30" rx="15" fill="#6254d4"/>
+    <text x="1150" y="741" text-anchor="middle" class="cost" fill="#fff">n writes</text>
+  </g>
+
+  <rect x="520" y="486" width="86" height="34" rx="17" fill="#e1faf6"/><text x="563" y="509" text-anchor="middle" class="choice" fill="#12806f">NO</text>
+  <rect x="693" y="327" width="70" height="34" rx="17" fill="#fff0e4"/><text x="728" y="350" text-anchor="middle" class="choice" fill="#a95117">YES</text>
+  <rect x="1200" y="486" width="86" height="34" rx="17" fill="#e1faf6"/><text x="1243" y="509" text-anchor="middle" class="choice" fill="#12806f">YES</text>
+  <rect x="1370" y="327" width="70" height="34" rx="17" fill="#efecff"/><text x="1405" y="350" text-anchor="middle" class="choice" fill="#6254d4">NO</text>
+
+  <rect x="88" y="805" width="1424" height="48" rx="24" fill="#0b2235"/>
+  <text x="800" y="837" text-anchor="middle" class="sans" font-size="20" font-weight="700" fill="#dce8ef">Normal midpoint → bounded local repair → rare full-domain fallback</text>
+</svg>

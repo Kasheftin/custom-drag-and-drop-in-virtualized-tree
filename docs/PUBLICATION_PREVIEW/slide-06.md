@@ -1,5 +1,7 @@
 # Slide 6 — Fix #2: Buckets & full rerank
 
+**Rendered image:** [`slide-06.png`](../assets/carousel/slide-06.png)
+
 **Purpose:** Second maintenance tool — when local repair isn't enough, migrate the whole domain safely.
 
 **On-slide text**

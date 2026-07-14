@@ -1,5 +1,7 @@
 # Slide 4 — Ranks get dense
 
+**Rendered image:** [`slide-04.png`](../assets/carousel/slide-04.png)
+
 **Purpose:** Name the failure mode the whole article is about — density — and the three states.
 
 **On-slide text**

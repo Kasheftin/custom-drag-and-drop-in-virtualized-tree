@@ -1,5 +1,7 @@
 # Slide 2 — The naive way breaks
 
+**Rendered image:** [`slide-02.png`](../assets/carousel/slide-02.png)
+
 **Purpose:** Show why integer positions don't survive reordering — the problem everyone hits first.
 
 **On-slide text**

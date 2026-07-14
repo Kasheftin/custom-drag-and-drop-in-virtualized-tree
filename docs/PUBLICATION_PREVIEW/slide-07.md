@@ -1,5 +1,7 @@
 # Slide 7 — When each one fires
 
+**Rendered image:** [`slide-07.png`](../assets/carousel/slide-07.png)
+
 **Purpose:** Tie it together — the escalation ladder. This is the "aha, it's one strategy" slide.
 
 **On-slide text**

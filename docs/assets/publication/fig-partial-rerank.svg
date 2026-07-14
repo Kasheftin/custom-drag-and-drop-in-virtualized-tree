@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Partial rerank repairs a bounded interval</title>
+  <desc id="desc">Healthy external anchors remain fixed while only the dense rows between them receive new ranks.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#0b2135" flood-opacity=".12"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#188d7c"/></marker>
+    <style>
+      .sans{font-family:Inter,"Segoe UI",Arial,sans-serif}.mono{font-family:"Cascadia Mono",Consolas,monospace}
+      .title{font:700 44px Inter,"Segoe UI",Arial,sans-serif;fill:#0a2237}.sub{font:400 24px Inter,"Segoe UI",Arial,sans-serif;fill:#506477}
+      .section{font:750 19px Inter,"Segoe UI",Arial,sans-serif;fill:#536b7d;letter-spacing:.14em}.label{font:700 19px Inter,"Segoe UI",Arial,sans-serif;fill:#0a2237}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#f7f4ec"/>
+  <text x="88" y="84" class="title">Partial rerank: repair the interval, keep the boundaries</text>
+  <text x="88" y="122" class="sub">The smallest useful write set restores headroom without touching the rest of the list.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="88" y="180" width="1130" height="585" rx="32" fill="#fff" stroke="#d6e0e7" stroke-width="2"/>
+    <text x="134" y="233" class="section">BEFORE · DENSE RUN</text>
+    <path d="M168 348H1138" stroke="#b5c4cf" stroke-width="5"/>
+    <circle cx="190" cy="348" r="36" fill="#8b7cf6" stroke="#fff" stroke-width="8"/><path d="M176 337h28v23h-28z" fill="none" stroke="#fff" stroke-width="3"/><path d="M183 337v-7a7 7 0 0 1 14 0v7" fill="none" stroke="#fff" stroke-width="3"/>
+    <circle cx="1116" cy="348" r="36" fill="#8b7cf6" stroke="#fff" stroke-width="8"/><path d="M1102 337h28v23h-28z" fill="none" stroke="#fff" stroke-width="3"/><path d="M1109 337v-7a7 7 0 0 1 14 0v7" fill="none" stroke="#fff" stroke-width="3"/>
+    <g fill="#ff9b52" stroke="#fff" stroke-width="5"><circle cx="608" cy="348" r="23"/><circle cx="655" cy="348" r="23"/><circle cx="699" cy="348" r="23"/><circle cx="741" cy="348" r="23"/><circle cx="781" cy="348" r="23"/><circle cx="819" cy="348" r="23"/></g>
+    <text x="190" y="409" text-anchor="middle" class="label">fixed anchor</text><text x="1116" y="409" text-anchor="middle" class="label">fixed anchor</text>
+    <rect x="541" y="422" width="352" height="45" rx="22" fill="#fff0e4"/><text x="717" y="451" text-anchor="middle" class="sans" font-size="19" font-weight="700" fill="#ae5719">long / duplicate ranks crowd together</text>
+
+    <path d="M653 488V539" stroke="#188d7c" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="134" y="548" class="section">AFTER · SAME ANCHORS, NEW HEADROOM</text>
+    <path d="M168 650H1138" stroke="#b5c4cf" stroke-width="5"/>
+    <circle cx="190" cy="650" r="36" fill="#8b7cf6" stroke="#fff" stroke-width="8"/><circle cx="1116" cy="650" r="36" fill="#8b7cf6" stroke="#fff" stroke-width="8"/>
+    <g fill="#1ec8bb" stroke="#fff" stroke-width="5"><circle cx="360" cy="650" r="23"/><circle cx="510" cy="650" r="23"/><circle cx="660" cy="650" r="23"/><circle cx="810" cy="650" r="23"/><circle cx="960" cy="650" r="23"/></g>
+    <rect x="427" y="695" width="460" height="45" rx="22" fill="#e1faf6"/><text x="657" y="724" text-anchor="middle" class="sans" font-size="19" font-weight="750" fill="#107267">only the k rows inside the window are rewritten</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1260" y="180" width="252" height="585" rx="32" fill="#0b2235"/>
+    <text x="1292" y="232" class="sans" font-size="18" font-weight="800" fill="#1ec8bb" letter-spacing="2">ESCALATION</text>
+    <text x="1292" y="285" class="sans" font-size="27" font-weight="750" fill="#fff">What if the</text><text x="1292" y="320" class="sans" font-size="27" font-weight="750" fill="#fff">window grows</text><text x="1292" y="355" class="sans" font-size="27" font-weight="750" fill="#fff">too wide?</text>
+    <rect x="1292" y="406" width="188" height="102" rx="18" fill="#17364e" stroke="#ff9b52" stroke-width="2"/>
+    <text x="1386" y="448" text-anchor="middle" class="mono" font-size="24" font-weight="700" fill="#ffd8bb">k &gt; 256</text><text x="1386" y="482" text-anchor="middle" class="sans" font-size="17" fill="#bfd0dc">demo maximum</text>
+    <path d="M1386 535V589" stroke="#ff9b52" stroke-width="4" marker-end="url(#arrow)"/>
+    <rect x="1292" y="611" width="188" height="104" rx="18" fill="#fff0e4"/>
+    <text x="1386" y="651" text-anchor="middle" class="sans" font-size="19" font-weight="800" fill="#9f4f17">FULL RERANK</text><text x="1386" y="682" text-anchor="middle" class="sans" font-size="17" fill="#6e4a31">that one domain</text>
+  </g>
+  <text x="88" y="838" class="sans" font-size="21" fill="#52697b">Healthy boundaries stay fixed; the repair remains bounded or explicitly escalates.</text>
+</svg>

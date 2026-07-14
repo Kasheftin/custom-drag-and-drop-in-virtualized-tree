@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Ordering domains in a hierarchical tree</title>
+  <desc id="desc">The root sibling list, A's children, and B's children are independent rank domains and may use different buckets.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0b1f33" flood-opacity=".13"/></filter>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#ff9b52"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#148e79"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#8b7cf6"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#d65f5f"/></marker>
+    <style>
+      .sans{font-family:Inter,"Segoe UI",Arial,sans-serif}.mono{font-family:"Cascadia Mono",Consolas,monospace}
+      .title{font:700 44px Inter,"Segoe UI",Arial,sans-serif;fill:#0a2237}.sub{font:400 24px Inter,"Segoe UI",Arial,sans-serif;fill:#506477}
+      .label{font:700 23px Inter,"Segoe UI",Arial,sans-serif;fill:#0a2237}.small{font:500 18px Inter,"Segoe UI",Arial,sans-serif;fill:#5d7182}
+      .node{fill:#fff;stroke:#cbd6de;stroke-width:2}.edge{fill:none;stroke:#9eb0bd;stroke-width:3}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#f7f4ec"/>
+  <text x="88" y="84" class="title">Ranks are local to sibling domains</text>
+  <text x="88" y="122" class="sub">A bucket belongs to one ordered list — not to the whole tree.</text>
+
+  <path class="edge" d="M800 352V405M430 405H1170M430 405V468M1170 405V468"/>
+
+  <g filter="url(#shadow)">
+    <rect x="480" y="175" width="640" height="178" rx="28" fill="#fff" stroke="#ff9b52" stroke-width="3"/>
+    <rect x="505" y="198" width="203" height="42" rx="21" fill="#fff0e4"/>
+    <circle cx="530" cy="219" r="14" fill="#ff9b52"/><text x="530" y="226" text-anchor="middle" class="sans" font-size="17" font-weight="800" fill="#0a2237">1</text>
+    <text x="556" y="227" class="label">Root domain</text>
+    <text x="990" y="227" text-anchor="end" class="small">parentId = null</text>
+    <rect class="node" x="555" y="266" width="202" height="62" rx="16"/><text x="656" y="305" text-anchor="middle" class="label">A</text>
+    <rect class="node" x="843" y="266" width="202" height="62" rx="16"/><text x="944" y="305" text-anchor="middle" class="label">B</text>
+    <path d="M764 298H835" stroke="#ff9b52" stroke-width="4" marker-end="url(#arrowOrange)"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="105" y="468" width="650" height="280" rx="28" fill="#fff" stroke="#1ec8bb" stroke-width="3"/>
+    <rect x="130" y="492" width="290" height="42" rx="21" fill="#e1faf6"/>
+    <circle cx="155" cy="513" r="14" fill="#1ec8bb"/><text x="155" y="520" text-anchor="middle" class="sans" font-size="17" font-weight="800" fill="#08231f">0</text>
+    <text x="181" y="521" class="label">A's children</text>
+    <text x="640" y="521" text-anchor="end" class="small">parentId = A</text>
+    <rect class="node" x="165" y="577" width="210" height="72" rx="17"/><text x="270" y="621" text-anchor="middle" class="label">A1</text>
+    <rect class="node" x="485" y="577" width="210" height="72" rx="17"/><text x="590" y="621" text-anchor="middle" class="label">A2</text>
+    <path d="M383 613H477" stroke="#148e79" stroke-width="4" marker-end="url(#arrowGreen)"/>
+    <text x="430" y="685" text-anchor="middle" class="sans" font-size="19" font-weight="700" fill="#148e79">✓ comparable</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="845" y="468" width="650" height="280" rx="28" fill="#fff" stroke="#8b7cf6" stroke-width="3"/>
+    <rect x="870" y="492" width="290" height="42" rx="21" fill="#efecff"/>
+    <circle cx="895" cy="513" r="14" fill="#8b7cf6"/><text x="895" y="520" text-anchor="middle" class="sans" font-size="17" font-weight="800" fill="#fff">2</text>
+    <text x="921" y="521" class="label">B's children</text>
+    <text x="1380" y="521" text-anchor="end" class="small">parentId = B</text>
+    <rect class="node" x="905" y="577" width="210" height="72" rx="17"/><text x="1010" y="621" text-anchor="middle" class="label">B1</text>
+    <rect class="node" x="1225" y="577" width="210" height="72" rx="17"/><text x="1330" y="621" text-anchor="middle" class="label">B2</text>
+    <path d="M1122 613H1217" stroke="#8b7cf6" stroke-width="4" marker-end="url(#arrowPurple)"/>
+    <text x="1170" y="685" text-anchor="middle" class="sans" font-size="19" font-weight="700" fill="#8b7cf6">✓ comparable</text>
+  </g>
+
+  <path d="M590 709C760 804 840 804 1010 709" fill="none" stroke="#d65f5f" stroke-width="3" stroke-dasharray="10 10" marker-end="url(#arrowRed)"/>
+  <rect x="610" y="762" width="380" height="50" rx="25" fill="#fff0f0" stroke="#efb1b1"/>
+  <text x="800" y="794" text-anchor="middle" class="sans" font-size="20" font-weight="700" fill="#b74d4d">✕ never compared across domains</text>
+  <text x="88" y="854" class="small">Same rank string, different parentId → different ordering space.</text>
+</svg>

@@ -1,5 +1,10 @@
 # Slide 9 — Call to action
 
+**Rendered image:** [`slide-09.png`](../assets/carousel/slide-09.png)
+
+**Interactive output:** [`lexorank-carousel.pdf`](../assets/carousel/lexorank-carousel.pdf) — the
+Article and Demo cards, Source code row, and prequel line are hyperlink annotations on PDF page 9.
+
 **Purpose:** Convert attention into a click and (secondarily) a follow. This is the last slide.
 
 **On-slide text**
@@ -18,6 +23,8 @@
 
 **Notes**
 
-- LinkedIn document posts aren't clickable, so **also put both links in the post caption** and say
-  "links in the post" on this slide.
+- LinkedIn accepts secure PDF hyperlinks, but **also put the important URLs in the post caption**
+  because not every client or document-viewing surface exposes annotations consistently.
 - Repeat your name/handle here — this is the slide people screenshot or return to.
+- The PDF itself preserves secure hyperlinks, but the post caption should still repeat the important
+  URLs for clients or surfaces that do not expose document annotations consistently.

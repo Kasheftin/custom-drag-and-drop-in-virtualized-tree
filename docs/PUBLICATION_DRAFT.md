@@ -1,5 +1,7 @@
 # LexoRank Beyond the Midpoint: Buckets, Local Repair, and Online Rebalancing
 
+![LexoRank publication cover](./assets/publication/hero-lexorank-1920x1080.png)
+
 Modern drag-and-drop interfaces make reordering look deceptively simple. A user moves one row, the row appears in a new place, and the operation is finished.
 
 The data model has a more difficult problem. It must preserve that position without rewriting every neighboring record, remain stable under repeated insertions, and eventually repair the rank space when some region becomes too dense.
@@ -278,8 +280,9 @@ Children of B: bucket 2
 
 There is no conflict. The complete rank is only compared inside its domain.
 
-> **🖼 Figure suggestion — `fig-ordering-domains.svg`**
-> **Draw:** the `Root / A / B / A1 A2 / B1 B2` tree, but with each sibling list boxed as its own **ordering domain** and tinted a different colour: the root list (A, B), A's children (A1, A2), and B's children (B1, B2). Label each box with its own bucket (e.g. root = bucket 1, A's children = bucket 0, B's children = bucket 2) to show buckets are per-domain. Add a green "✓ comparable" arrow between A1 and A2, and a red "✗ never compared" arrow between A1 and B1, to drive home that ranks only mean something within one box.
+![Three independently ranked sibling domains in one tree](./assets/publication/fig-ordering-domains.svg)
+
+*Figure 1. Ranks and buckets are scoped to a sibling domain. Cross-domain ranks are never compared.*
 
 It also changes the cost model. A tree can contain one million nodes while its largest sibling list contains fifty items. A full rebalance of that sibling domain rewrites fifty ranks, not one million.
 
@@ -299,8 +302,9 @@ The reference implementation produces values such as:
 
 The prefix before `|` is the bucket. The remaining part is the rank body.
 
-> **🖼 Figure suggestion — `fig-rank-anatomy.svg`**
-> **Draw:** a single rank string, e.g. `1 | 0i0000 :`, blown up large with call-out labels pointing at each part: the leading `1` labelled **bucket** (0/1/2), the `|` as a **separator**, `0i0000` labelled **rank body (base‑36)**, and the trailing `:` labelled **integer/decimal marker**. Underneath, a small horizontal number line showing the three buckets as adjacent bands — everything in bucket 0 sorts before bucket 1 before bucket 2 — to make "the whole string sorts" visually obvious.
+![Anatomy of a complete LexoRank value](./assets/publication/fig-rank-anatomy.svg)
+
+*Figure 2. A complete rank combines the migration bucket with the base-36 position inside that bucket.*
 
 The complete string participates in ordering. Consequently, all bucket-0 values sort before bucket-1 values, which sort before bucket-2 values.
 
@@ -423,8 +427,9 @@ A collision is only one trigger. A valid interval can also be too *dense*: every
 
 The demo detects the third case with a simple proxy: the length of a rank's base-36 body. Freshly balanced ranks stay short (a six-character integer body addresses billions of positions), so a body noticeably longer than that baseline is the operational signal of a hot interval. The repair seeds a window at the selected row and expands outward across every neighbouring row that is duplicate, dense, or in the wrong bucket, stopping at the first healthy short rank on each side. Those healthy rows become the fixed external anchors, so redistribution lands the whole region back in short, well-spaced ranks.
 
-> **🖼 Figure suggestion — `fig-partial-rerank.svg`**
-> **Draw:** a before/after of one sibling list rendered as a horizontal number line. **Before:** two short "healthy" anchor rows at the edges, and between them a cluster of rows whose ranks are visibly long (draw them crammed together with long strings) — the dense run. **After:** the same two anchors unchanged (highlight them as fixed), with the middle rows now evenly spaced and short again. Annotate that only the rows between the anchors were rewritten, and the anchors themselves never moved. A small inset can show the escalation case: if the anchors are too far apart (window > 256), the arrow points to "full rerank" instead.
+![Partial rerank before and after](./assets/publication/fig-partial-rerank.svg)
+
+*Figure 3. Partial rerank keeps external anchors fixed, rewrites only the bounded interval, and escalates when that window exceeds its limit.*
 
 Crucially the window has a hard maximum:
 
@@ -644,9 +649,7 @@ The browser demo completes its in-memory root migration quickly and disables con
 
 ## Moving a Tree Node
 
-The moved item's old bucket does not determine its new rank.
-
-Suppose `A2` moves from the children of `A` into the children of `B`:
+The moved item's old bucket does not determine its new rank. Suppose `A2` moves from the children of `A` into the children of `B`:
 
 ```text
 before
@@ -674,32 +677,15 @@ That is why moving an item is cheap. It gets one new rank in its new parent's li
 
 ---
 
-## Sparse Context State
+## Sparse Ordering State
 
-An independent domain needs a stable bucket and an active-operation record during full migration. A naive implementation could create one state row for every non-empty sibling list.
+Almost everything about a domain can be read back from its ranks: which bucket it is in, whether it is dense, where its boundaries are. One thing cannot — whether a full rebalance is already running. That fact lives in no item row, and it is the reason the design keeps a small side record per domain.
 
-That is wasteful for a sparse tree. Many nodes have no children; many other sibling lists will remain small and never leave bucket 0.
-
-We can use a sparse convention:
-
-```text
-no context row
-  = stable bucket 0
-  = no active operation
-```
-
-Create an explicit record only when:
-
-- a full rebalance is scheduled or begins;
-- the domain completes into bucket 1 or 2;
-- a failed operation needs recovery;
-- future non-default configuration requires persistence.
-
-A conceptual record — the demo calls it `OrderingState` (see `src/ranking/types.ts`) — is:
+The demo calls it `OrderingState` (see `src/ranking/types.ts`):
 
 ```ts
 type OrderingState = {
-  domainKey: string
+  domainId: string
   stableBucket: 0 | 1 | 2
   operation: null | {
     status: 'scheduled' | 'running' | 'failed'
@@ -713,56 +699,29 @@ type OrderingState = {
 }
 ```
 
-The demo's concrete type is a leaner version of this — same idea, fewer fields (`domainId`, `stableBucket`, `operation`, `version`). A backend would use a monotonically increasing integer `version` for optimistic concurrency, exactly as the compare-and-swap examples below rely on.
+The one indispensable field is `operation`. A populated `operation` means the domain is mid-migration; `null` means it is settled. Every insert and every scheduling attempt consults it, so a second rebalance cannot start while one is in flight, and so an insertion during a migration knows it is landing in a domain whose ranks are temporarily split across two buckets. A backend uses `version` as a monotonic counter for the compare-and-swap below. (The demo's concrete type is a little leaner — same shape, fewer fields.)
 
-For the tree:
+`stableBucket`, by contrast, is a convenience rather than a source of truth. A non-empty domain already advertises its bucket in every row, so an insertion inherits it from the neighbours: `between()` in the middle, `genPrev()` / `genNext()` at the ends, all stay inside the neighbour's bucket. Storing `stableBucket` only saves that lookup and supplies a default when the domain is empty.
 
-```text
-tree-1:root       → root ordering context
-tree-1:parent:A   → children of A
-tree-1:parent:B   → children of B
-```
+This settles a tempting misconception: that a domain which has settled in bucket 1 or 2 must keep its record so new inserts don't fall back to bucket 0. It doesn't — an insert reads its neighbours, and the neighbours are already in bucket 1 or 2. (A naive implementation that assumed the default bucket *without* reading neighbours would indeed emit a stray `0|…` row that sorts before everything; reading neighbours is what prevents it.) The record is kept for two lesser reasons: to read a domain's current bucket without scanning a row — for example, to pick the source bucket of its next migration — and, while a migration runs, to tell the stable bucket apart from the destination at a mixed boundary.
 
-### Why keep a record after bucket 1 or 2 is established?
+### The sparse convention
 
-If a non-empty domain contains:
+Most sibling lists are small and never leave bucket 0, and most tree nodes have no children at all. Creating one state row per non-empty list would be wasteful, so absence carries meaning:
 
 ```text
-1|abc
-1|def
+no record
+  = stable bucket 0
+  = no active operation
 ```
 
-and the record is deleted, a new insertion may incorrectly assume bucket 0:
+A record is created only when a domain leaves that default: a rebalance is scheduled or running, the domain has settled in bucket 1 or 2, a failed operation needs recovery, or some future non-default configuration must persist.
 
-```text
-0|xyz   ← sorts before every existing bucket-1 row
-```
+An empty domain has no rows to inherit a bucket from, so it returns to the implicit default: its record is deleted, and the next child inserted receives a bucket-0 midpoint. That reset is the one place the *absence* of a record is load-bearing, so a backend must perform it under the same lock or version that an insert takes — otherwise one process can observe the empty list while another inserts against the old non-zero bucket.
 
-The established nonzero bucket must therefore remain explicit while the domain remains populated.
+### Claiming a domain for exactly one rebalance
 
-### Empty domains return to the default
-
-An empty list has no ranks that must remain compatible with an old bucket. If every child is removed, the context can be deleted or reset to bucket 0.
-
-The next inserted child receives a bucket-0 middle rank.
-
-The cleanup must be transactional in a backend:
-
-1. Lock or version-check the context.
-2. Confirm that no items exist in the domain.
-3. Clear any operation.
-4. Delete or reset the context.
-5. Commit.
-
-An insertion into the same domain must coordinate with the same lock or version. Otherwise one process can observe an empty list while another inserts using the old nonzero bucket.
-
-In the frontend demo, the context map starts empty. Partial reranking does not add records. The root Full rerank button creates the root context while migration runs, retains it after transitions into bucket 1 or 2, and removes it after the `2 → 0` cycle returns to the implicit default.
-
----
-
-## Scheduling Exactly One Full Rebalance
-
-Checking for an active operation and then creating one in two independent statements is unsafe:
+Checking for an active operation and then creating one in two separate statements races:
 
 ```text
 worker A reads idle
@@ -771,14 +730,14 @@ worker A schedules
 worker B schedules
 ```
 
-The fix is a single atomic "claim the domain" step, keyed by the domain. As pseudocode:
+The fix is a single atomic "claim the domain" step, keyed by the domain:
 
 ```text
 atomically, for this domainKey:
-  if no context exists:
+  if no record exists:
       create { stableBucket: 0, operation: scheduled(0 → 1), version: 1 }
       → claimed
-  else if the context has no active operation:
+  else if the record has no active operation:
       set operation = scheduled(stableBucket → nextBucket)
       bump version
       → claimed
@@ -786,9 +745,9 @@ atomically, for this domainKey:
       → already busy; do nothing
 ```
 
-The invariant is what matters, not the mechanism: one atomic step either acquires the domain or reports that another operation already owns it. A backend expresses this with whatever compare-and-swap its store provides; the browser demo simply runs one migration at a time and disables the controls that could start a second.
+The invariant matters more than the mechanism: one step either acquires the domain or reports that another operation already owns it. A backend expresses this with whatever compare-and-swap its store provides; the browser demo simply runs one migration at a time and disables the controls that could start a second. Identify each domain by a single string key such as `tree-1:root` or `tree-1:parent:A` — it sidesteps the awkward `(treeId, parentId = null)` root case that a two-column key runs into.
 
-One practical note that survives the move to a backend: identify each domain by a single string key such as `tree-1:root` or `tree-1:parent:A`. It sidesteps the awkward "the root parent is null" case that a two-column `(treeId, parentId)` key runs into.
+In the demo the context map starts empty and partial reranks add nothing to it. The Full-rerank buttons create a record while migration runs, keep it across the `0 → 1` and `1 → 2` transitions, and delete it once `2 → 0` returns the domain to the implicit default.
 
 ---
 
@@ -842,8 +801,9 @@ Midpoint insertion, partial rerank, and full rerank are not competing systems. T
 
 So the length threshold in step 2 is what decides *whether* to repair, and the window count in step 3 is what decides *which* repair — partial or full.
 
-> **🖼 Figure suggestion — `fig-escalation-flow.svg`**
-> **Draw:** a top-to-bottom flowchart of the four steps. Box 1 "Insert midpoint (1 write)" → diamond "rank too long?" with a **No → done** exit. **Yes** flows to box "Partial rerank: expand window to nearest healthy anchors" → diamond "window ≤ max?". **Yes → redistribute window (k writes), done.** **No → Full rerank of the whole sibling domain (n writes).** Keep the happy path (the No-at-step-2 exit) visually dominant to reinforce that almost every operation stops at step 1.
+![Escalation from midpoint insertion to partial and full rerank](./assets/publication/fig-escalation-flow.svg)
+
+*Figure 4. Maintenance escalates from one-row midpoint insertion to bounded local repair and only then to a full sibling-domain rerank.*
 
 When step 2's check runs is an implementation choice: right after each insertion that crosses the threshold, on a scheduled maintenance pass for the affected domain, during a periodic integrity scan, or from a manual admin action. The timing is less important than the invariants: a partial repair must stay small enough for one transaction, while a full rerank needs explicit state, progress, recovery, and coordination.
 
